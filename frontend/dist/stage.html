@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ForgeWorship — Stage</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#000; overflow:hidden; cursor:none; }
+  #app { position:fixed; inset:0; }
+  .bg { position:absolute; inset:0; background-size:cover; background-position:center; }
+  .bg-media { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .overlay { position:absolute; inset:0; }
+  .content {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:6vh 7vw;
+  }
+  .content.align-left { align-items:flex-start; text-align:left; }
+  .content.align-right { align-items:flex-end; text-align:right; }
+  .lines { white-space:pre-line; }
+  .meta { margin-top:3.2vh; opacity:.85; font-size:1.45vw; letter-spacing:.06em; }
+  .ref { font-size:1.9vw; opacity:.9; margin-bottom:2.6vh; letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+  .label { font-size:1.35vw; opacity:.55; margin-bottom:1.2vh; text-transform:uppercase; letter-spacing:.18em; }
+  #logo { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  #logo img { max-width:34%; max-height:52%; opacity:.9; }
+  .logo-word {
+    font-size:6.4vw; font-weight:700; letter-spacing:.12em; color:#f4f7fb;
+    text-shadow:0 2px 18px rgba(0,0,0,.35); font-family:Inter, system-ui, sans-serif;
+  }
+  .logo-word .accent { color:#7fc4d8; }
+  #credits {
+    position:absolute; left:0; right:0; bottom:4.5vh; display:flex; flex-direction:column;
+    align-items:center; gap:.8vh; font-size:1.55vw; color:#f4f7fb; text-shadow:0 1px 8px rgba(0,0,0,.55);
+    font-family:Inter, system-ui, sans-serif; letter-spacing:.03em;
+  }
+  #credits .song { font-weight:700; font-size:1.9vw; }
+  #alerts {
+    position:absolute; left:0; right:0; bottom:9vh; display:flex; justify-content:center; pointer-events:none;
+  }
+  #alerts .pill {
+    background:rgba(12,18,26,.82); color:#ffd97a; padding:1.6vh 3vw; border-radius:1.2vw;
+    font-size:2.4vw; font-weight:600; font-family:Inter, system-ui, sans-serif;
+    box-shadow:0 8px 40px rgba(0,0,0,.45);
+  }
+  #countdown {
+    position:absolute; top:4.5vh; right:3.4vw; font-size:2.6vw; font-weight:700; color:#eaf3fa;
+    background:rgba(12,18,26,.62); padding:.9vh 1.6vw; border-radius:.9vw;
+    font-family:Inter, system-ui, sans-serif; letter-spacing:.05em;
+  }
+  #conn {
+    position:absolute; top:2.2vh; left:2.4vw; font:600 1.05vw Inter, system-ui, sans-serif;
+    color:#8fd0a0; opacity:.75; display:none;
+  }
+  #conn.reconnecting { display:block; color:#f0b060; }
+  .text-shadow-hard { text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 4px rgba(0,0,0,.65); }
+  .text-shadow-none { text-shadow:none; }
+  #offline {
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    color:#5a7184; font:500 2.2vw Inter, system-ui, sans-serif; background:#0b1218;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="offline">ForgeWorship — waiting for the operator…</div>
+  <div id="conn">reconnecting…</div>
+  <div id="content-wrap" class="content" style="display:none">
+    <div id="s-ref" class="ref"></div>
+    <div id="s-label" class="label"></div>
+    <div id="s-lines" class="lines"></div>
+    <div id="s-meta" class="meta"></div>
+  </div>
+  <div id="logo" style="display:none"><div class="logo-word">Forge<span class="accent">Worship</span></div></div>
+  <div id="credits" style="display:none"></div>
+  <div id="alerts" style="display:none"><div class="pill" id="alert-text"></div></div>
+  <div id="countdown" style="display:none"></div>
+</div>
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+const stateUrl = "/api/state";
+let ws = null;
+let pollTimer = null;
+let current = null;
+let lastCountdownText = "";
+
+function $(id){ return document.getElementById(id); }
+
+function applyTheme(theme, slide){
+  const wrap = $("content-wrap");
+  const bg = slide && slide.type === "media" && slide.path && slide.kind === "image"
+    ? null : (theme && theme.background);
+  // background layer
+  let bgEl = document.querySelector(".bg");
+  if (!bgEl){ bgEl = document.createElement("div"); bgEl.className = "bg"; $("app").prepend(bgEl); }
+  if (bg && bg.type === "gradient"){
+    bgEl.style.backgroundImage = bg.css;
+    bgEl.style.backgroundColor = "transparent";
+  } else if (bg){
+    bgEl.style.backgroundImage = "none";
+    bgEl.style.backgroundColor = bg.css || "#10171e";
+  }
+  // media underlay
+  let vid = document.querySelector(".bg-media");
+  if (slide && slide.type === "media"){
+    const isVid = slide.kind === "video";
+    if (!vid || (vid.tagName === "VIDEO") !== isVid){
+      if (vid) vid.remove();
+      vid = isVid ? document.createElement("video") : document.createElement("img");
+      vid.className = "bg-media";
+      if (isVid){ vid.autoplay = true; vid.loop = true; vid.muted = true; }
+      $("app").insertBefore(vid, $("app").firstChild);
+    }
+    const src = slide.path;
+    if (vid.tagName === "VIDEO"){ if (vid.getAttribute("src") !== src){ vid.src = src; vid.play().catch(()=>{}); } }
+    else if (vid.getAttribute("src") !== src) vid.src = src;
+  } else if (vid) { vid.remove(); }
+  // overlay for text contrast over media
+  let ov = document.querySelector(".overlay");
+  if (!ov){ ov = document.createElement("div"); ov.className = "overlay"; bgEl.after(ov); }
+  const op = theme ? (theme.overlay_opacity || 0) : 0;
+  ov.style.background = op > 0 ? "rgba(6,10,16," + op + ")" : "transparent";
+  // typography
+  const fam = theme ? theme.font_family : "Inter, system-ui, sans-serif";
+  const size = theme ? theme.font_size_vw : 5.2;
+  const weight = theme ? theme.font_weight : "600";
+  const align = theme ? theme.align : "center";
+  const shadowCls = (theme && theme.shadow) ? "text-shadow-hard" : "text-shadow-none";
+  wrap.className = "content " + (align === "left" ? "align-left" : align === "right" ? "align-right" : "");
+  wrap.style.fontFamily = fam;
+  const lines = $("s-lines");
+  lines.style.color = theme ? theme.text_color : "#fff";
+  lines.style.fontSize = size + "vw";
+  lines.style.fontWeight = weight;
+  lines.className = "lines " + shadowCls;
+  $("s-ref").style.color = theme ? theme.sub_text_color : "#fff";
+  $("s-label").style.color = theme ? theme.sub_text_color : "#fff";
+  $("s-meta").style.color = theme ? theme.sub_text_color : "#fff";
+  $("s-ref").className = "ref " + shadowCls;
+  $("s-label").className = "label " + shadowCls;
+  $("s-meta").className = "meta " + shadowCls;
+}
+
+function showSlide(st){
+  const slide = st.slide;
+  const theme = (slide && slide.theme) || st.theme;
+  const wrap = $("content-wrap");
+  if (slide && st.display !== "blank"){
+    applyTheme(theme, slide);
+    wrap.style.display = "flex";
+    const ref = $("s-ref"), label = $("s-label"), lines = $("s-lines"), meta = $("s-meta");
+    if (slide.type === "song"){
+      ref.textContent = slide.title || "";
+      label.textContent = slide.label || "";
+      lines.textContent = (slide.lines || []).join("\n");
+      meta.textContent = [slide.author, "CCLI " + (slide.ccli || "")].filter(Boolean).join(" · ");
+    } else if (slide.type === "scripture"){
+      ref.textContent = slide.reference + " · " + slide.version;
+      label.textContent = slide.label || "";
+      lines.textContent = slide.text || "";
+      meta.textContent = "";
+    } else if (slide.type === "media"){
+      ref.textContent = ""; label.textContent = ""; lines.textContent = "";
+      meta.textContent = slide.path && slide.kind === "color" ? "" : "";
+      applyTheme(theme, slide);
+      // for media slides the media is the background; hide text wrap
+      wrap.style.display = "none";
+    } else if (slide.type === "custom"){
+      ref.textContent = ""; label.textContent = slide.label || "";
+      lines.textContent = (slide.lines || []).join("\n"); meta.textContent = "";
+    } else if (slide.type === "blank"){
+      wrap.style.display = "none";
+    }
+  } else {
+    wrap.style.display = "none";
+  }
+  // logo / blank overlays
+  const showLogo = st.display === "logo";
+  $("logo").style.display = showLogo ? "flex" : "none";
+  if (showLogo){ const bgEl = document.querySelector(".bg"); if (bgEl){ bgEl.style.backgroundImage = "none"; bgEl.style.backgroundColor = "#0b1218"; } }
+  // credits (song attribution overlay)
+  const credits = $("credits");
+  if (st.display === "credits" && slide && slide.type === "song"){
+    credits.style.display = "flex";
+    credits.innerHTML = '<div class="song">' + esc(slide.title || "") + "</div>" +
+      (slide.author ? "<div>" + esc(slide.author) + "</div>" : "") +
+      (slide.ccli ? "<div>CCLI #" + esc(slide.ccli) + "</div>" : "");
+  } else credits.style.display = "none";
+  $("offline").style.display = "none";
+}
+
+function esc(s){ const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+function renderCountdown(st){
+  const el = $("countdown");
+  if (!st.countdown_end){ el.style.display = "none"; lastCountdownText = ""; return; }
+  const remain = Math.max(0, st.countdown_end * 1000 - Date.now());
+  if (remain <= 0){ el.style.display = "none"; lastCountdownText = ""; return; }
+  const m = Math.floor(remain / 60000), s = Math.floor((remain % 60000) / 1000);
+  const txt = (m > 0 ? m + " min " : "") + String(s).padStart(2, "0") + " sec";
+  el.style.display = "block";
+  if (txt !== lastCountdownText){ el.textContent = "⏳ " + txt; lastCountdownText = txt; }
+  if (st.mode !== "idle" && st.slide) $("countdown").style.background = "rgba(12,18,26,.62)";
+}
+
+function renderAlert(st){
+  const el = $("alerts");
+  if (st.alert && st.alert.until * 1000 > Date.now() && st.alert.text){
+    el.style.display = "flex";
+    if ($("alert-text").textContent !== st.alert.text) $("alert-text").textContent = st.alert.text;
+  } else el.style.display = "none";
+}
+
+function render(st){
+  current = st;
+  renderCountdown(st);
+  renderAlert(st);
+  showSlide(st);
+}
+
+function connect(){
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(proto + "//" + location.host + "/ws");
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "state" && msg.state) render(msg.state);
+    } catch(_){}
+  };
+  ws.onopen = () => { $("conn").classList.remove("reconnecting"); if (pollTimer){ clearInterval(pollTimer); pollTimer = null; } };
+  ws.onclose = () => {
+    $("conn").classList.add("reconnecting");
+    if (!pollTimer) pollTimer = setInterval(poll, 2000);
+    setTimeout(connect, 2500);
+  };
+  ws.onerror = () => { try { ws.close(); } catch(_){} };
+}
+
+async function poll(){
+  try {
+    const r = await fetch(stateUrl, { cache: "no-store" });
+    if (r.ok){ const st = await r.json(); render(st); $("offline").style.display = "none"; }
+  } catch(_){ /* offline — keep last frame */ }
+}
+
+// clock tick keeps countdown live between pushes
+setInterval(() => { if (current) renderCountdown(current); }, 500);
+
+connect();
+poll();
+document.addEventListener("keydown", () => { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(()=>{}); }, { once: true });
+</script>
+</body>
+</html>

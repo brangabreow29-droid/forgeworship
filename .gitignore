@@ -1,0 +1,10 @@
+venv/
+node_modules/
+__pycache__/
+*.pyc
+backend/data/
+data/
+*.db
+docs/screenshots/
+demo_source.*
+.DS_Store

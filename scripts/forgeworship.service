@@ -1,0 +1,17 @@
+[Unit]
+Description=ForgeWorship — worship presentation server
+After=network.target
+
+[Service]
+Type=simple
+# Symlink-friendly: this file lives at ~/.hermes/forgeworship.service pointing to the real project
+WorkingDirectory=/home/mvb/Hermes projects/ForgeWorship/backend
+ExecStart="/home/mvb/Hermes projects/ForgeWorship/venv/bin/python" -m uvicorn src.main:app --host 0.0.0.0 --port 8020
+Restart=always
+RestartSec=3
+Environment=PYTHONPATH=/home/mvb/Hermes projects/ForgeWorship/backend/src
+# Optional shared-token gate (leave empty for open LAN use)
+Environment=FORGEWORSHIP_TOKEN=
+
+[Install]
+WantedBy=default.target

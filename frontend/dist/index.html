@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ForgeWorship — Cockpit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.svg">
+<style>
+:root {
+  --bg:#10141c; --panel:#171d28; --panel2:#1d2531; --line:#2a3444;
+  --text:#e8eef6; --dim:#8fa2b8; --accent:#5fb3c9; --accent2:#7fc4d8;
+  --danger:#e07a6a; --ok:#7fc99a; --warn:#e6c478; --radius:10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body { background:var(--bg); color:var(--text); font:14px/1.45 Inter, system-ui, -apple-system, sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+button { font:inherit; color:inherit; background:var(--panel2); border:1px solid var(--line); border-radius:var(--radius); padding:7px 12px; cursor:pointer; transition:background .12s, border-color .12s; }
+button:hover { background:#232d3c; border-color:#3a4a60; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b1218; font-weight:600; }
+button.primary:hover { background:var(--accent2); }
+button.danger { color:var(--danger); }
+button.small { padding:4px 9px; font-size:12.5px; border-radius:8px; }
+input, select, textarea { font:inherit; color:var(--text); background:#0e1319; border:1px solid var(--line); border-radius:8px; padding:7px 10px; outline:none; }
+input:focus, select:focus, textarea:focus { border-color:var(--accent); }
+header { display:flex; align-items:center; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+header .logo { font-weight:700; font-size:16px; letter-spacing:.02em; }
+header .logo span { color:var(--accent); }
+header .spacer { flex:1; }
+header .conn { font-size:12px; color:var(--dim); }
+header .conn.on::before { content:"●"; color:var(--ok); margin-right:5px; }
+header .conn.off::before { content:"●"; color:var(--danger); margin-right:5px; }
+main { flex:1; display:grid; grid-template-columns:280px 1fr 380px; gap:12px; padding:12px 16px; min-height:0; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; display:flex; flex-direction:column; min-height:0; }
+.panel-head { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); font-weight:600; }
+.panel-head .spacer { flex:1; }
+.panel-body { flex:1; overflow:auto; padding:10px; }
+.tabs { display:flex; gap:4px; padding:8px 10px 0; }
+.tab { padding:6px 12px; border-radius:8px 8px 0 0; cursor:pointer; color:var(--dim); font-size:13px; border:1px solid transparent; }
+.tab.active { color:var(--text); background:var(--panel2); border-color:var(--line); border-bottom-color:var(--panel2); }
+.list-item { padding:8px 10px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; }
+.list-item:hover { background:var(--panel2); }
+.list-item.sel { background:#223046; }
+.list-item .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.list-item .sub { color:var(--dim); font-size:12px; }
+.badge { font-size:10.5px; color:var(--dim); border:1px solid var(--line); padding:1px 7px; border-radius:99px; }
+.playlist-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; background:var(--panel2); cursor:grab; }
+.playlist-item.live { border-color:var(--accent); background:#1c3140; }
+.playlist-item.done { opacity:.5; }
+.playlist-item .n { color:var(--dim); font-size:12px; width:20px; text-align:right; }
+.playlist-item .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.playlist-item .go { padding:2px 9px; font-size:12px; }
+.playlist-item .x { color:var(--dim); cursor:pointer; padding:2px 6px; }
+.playlist-item .x:hover { color:var(--danger); }
+.playlist-item.dragover { border-top:2px solid var(--accent); }
+#preview { aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; position:relative; margin-bottom:10px; }
+#preview iframe { width:200%; height:200%; transform:scale(.5); transform-origin:0 0; border:0; pointer-events:none; }
+.preview-frame { position:absolute; inset:0; }
+.slide-thumbs { display:flex; flex-wrap:wrap; gap:6px; max-height:180px; overflow:auto; margin-bottom:10px; }
+.thumb { border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:11px; color:var(--dim); cursor:pointer; max-width:105px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:var(--panel2); }
+.thumb.cur { border-color:var(--accent); color:var(--text); }
+.controls { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:10px; }
+.controls2 { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-bottom:10px; }
+.form-grid { display:grid; gap:8px; }
+.form-grid label { font-size:12px; color:var(--dim); display:block; margin-bottom:3px; }
+.form-grid textarea { min-height:120px; resize:vertical; font-family:ui-monospace, monospace; font-size:13px; }
+.row { display:flex; gap:8px; align-items:center; }
+.row .grow { flex:1; }
+.dialog-back { position:fixed; inset:0; background:rgba(5,8,12,.66); display:none; align-items:center; justify-content:center; z-index:50; }
+.dialog { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; width:min(560px, 92vw); max-height:88vh; overflow:auto; }
+.dialog h3 { margin-bottom:12px; }
+.kv { font-size:12px; color:var(--dim); }
+.modal-note { font-size:12px; color:var(--dim); margin:6px 0 10px; }
+.alerts-row { display:flex; gap:6px; margin-top:8px; }
+.alerts-row input { flex:1; }
+.searchbox { width:100%; margin-bottom:8px; }
+.countdown-box { display:flex; gap:6px; align-items:center; margin-top:8px; }
+.countdown-box .cd { color:var(--warn); font-weight:600; font-size:13px; min-width:64px; }
+.section-title { font-size:11.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); margin:10px 0 6px; }
+.themes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.theme-chip { height:44px; border-radius:8px; border:1px solid var(--line); cursor:pointer; display:flex; align-items:flex-end; padding:4px 6px; font-size:10px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6); overflow:hidden; }
+.theme-chip.cur { border-color:var(--accent); box-shadow:0 0 0 2px rgba(95,179,201,.35); }
+footer { padding:6px 16px 10px; color:var(--dim); font-size:12px; display:flex; gap:14px; }
+footer a { color:var(--accent); text-decoration:none; }
+.toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#223046; border:1px solid var(--line); padding:8px 16px; border-radius:10px; display:none; z-index:60; }
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-thumb { background:#2c3849; border-radius:8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Forge<span>Worship</span> <span style="color:var(--dim);font-weight:400;font-size:12px">cockpit</span></div>
+  <div class="spacer"></div>
+  <span class="conn off" id="conn">connecting</span>
+  <button class="small" onclick="openDialog('pl-dialog')">New service</button>
+  <button class="small" onclick="openDialog('song-dialog')">Add song</button>
+  <button class="small" onclick="openDialog('script-dialog')">Add scripture</button>
+  <button class="small" onclick="window.open('/stage','stage','width=960,height=540')">Open stage</button>
+</header>
+<main>
+  <!-- LEFT: library -->
+  <section class="panel">
+    <div class="tabs">
+      <div class="tab" data-libtab="songs" onclick="libTab('songs')">Songs</div>
+      <div class="tab" data-libtab="scriptures" onclick="libTab('scriptures')">Scripture</div>
+      <div class="tab" data-libtab="media" onclick="libTab('media')">Media</div>
+    </div>
+    <div class="panel-body">
+      <input class="searchbox" id="lib-search" placeholder="Search…" oninput="renderLibrary()">
+      <div id="lib-list"></div>
+    </div>
+    <div class="panel-head" style="border-top:1px solid var(--line);border-bottom:0">
+      <span style="font-size:12px;color:var(--dim)">Themes</span><div class="spacer"></div>
+      <button class="small" onclick="openDialog('theme-dialog')">Edit</button>
+    </div>
+    <div class="panel-body" style="flex:0 0 auto">
+      <div class="themes-grid" id="themes-grid"></div>
+    </div>
+  </section>
+
+  <!-- CENTER: order of service -->
+  <section class="panel">
+    <div class="panel-head">
+      <b id="pl-name">Service</b>
+      <span class="badge" id="pl-count">0 items</span>
+      <div class="spacer"></div>
+      <select id="pl-select" style="max-width:200px" onchange="switchPlaylist(this.value)"></select>
+      <button class="small" onclick="saveAsTemplate()">Save as template</button>
+      <button class="small" onclick="openDialog('pl-dialog')">Edit</button>
+    </div>
+    <div class="panel-body" id="order-list"></div>
+    <div class="panel-head" style="border-top:1px solid var(--line);border-bottom:0;justify-content:center">
+      <span style="font-size:12px;color:var(--dim)">Drag to reorder · click ▶ to jump live</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: preview + controls -->
+  <section class="panel">
+    <div class="panel-head"><b>Live preview</b><div class="spacer"></div>
+      <button class="small" id="btn-live" onclick="goNext()">▶ Go live (N)</button>
+    </div>
+    <div class="panel-body">
+      <div id="preview">
+        <iframe id="preview-frame" class="preview-frame" src="/stage?preview=1" scrolling="no"></iframe>
+      </div>
+      <div class="slide-thumbs" id="thumbs"></div>
+      <div class="controls">
+        <button onclick="present('prev')">⏮ Prev</button>
+        <button onclick="present('blank')">Blank</button>
+        <button onclick="present('logo')">Logo</button>
+        <button onclick="present('credits')">Credits</button>
+        <button onclick="present('clear')" style="grid-column:span 2">Clear overlay</button>
+        <button class="danger" onclick="present('end')" style="grid-column:span 2">End service</button>
+      </div>
+      <div class="section-title">Alert / countdown</div>
+      <div class="alerts-row">
+        <input id="alert-input" placeholder="On-screen alert text…">
+        <button class="small" onclick="sendAlert()">Send</button>
+      </div>
+      <div class="countdown-box">
+        <select id="cd-mins"><option>1</option><option selected>5</option><option>10</option><option>15</option><option>20</option></select>
+        <span style="color:var(--dim);font-size:12px">min countdown</span>
+        <button class="small" onclick="startCountdown()">Start</button>
+        <button class="small" onclick="stopCountdown()">Stop</button>
+        <span class="cd" id="cd-live"></span>
+      </div>
+      <div class="section-title">Global theme override</div>
+      <div class="row">
+        <select id="theme-override" class="grow" onchange="applyThemeOverride(this.value)"><option value="">(slide themes)</option></select>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a href="/stage" target="_blank">/stage</a>
+  <a href="/docs" target="_blank">API docs</a>
+  <span id="foot-state"></span>
+</footer>
+
+<!-- dialogs -->
+<div class="dialog-back" id="song-dialog">
+  <div class="dialog">
+    <h3 id="song-dialog-title">Add song</h3>
+    <div class="form-grid">
+      <div><label>Title</label><input id="f-song-title" style="width:100%"></div>
+      <div class="row"><div class="grow"><label>Author</label><input id="f-song-author" style="width:100%"></div>
+      <div style="width:130px"><label>CCLI #</label><input id="f-song-ccli" style="width:100%"></div></div>
+      <div><label>Lyrics — blank line between slides, [Verse]/[Chorus] markers optional</label>
+        <textarea id="f-song-lyrics" placeholder="[Verse 1]&#10;line one&#10;line two&#10;&#10;[Chorus]&#10;chorus line"></textarea></div>
+      <div><label>Theme</label><select id="f-song-theme" style="width:100%"></select></div>
+      <div class="row"><button class="primary" onclick="saveSong()">Save song</button><button onclick="closeDialogs()">Cancel</button>
+      <div class="spacer"></div><button class="danger small" id="song-delete" onclick="deleteSong()">Delete</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-back" id="script-dialog">
+  <div class="dialog">
+    <h3 id="script-dialog-title">Add scripture</h3>
+    <div class="modal-note">Paste verses, one per line: <code>1 In the beginning…</code></div>
+    <div class="form-grid">
+      <div class="row"><div class="grow"><label>Reference</label><input id="f-script-ref" placeholder="Isaiah 42:1-9" style="width:100%"></div>
+      <div style="width:110px"><label>Version</label><input id="f-script-ver" value="NIV" style="width:100%"></div></div>
+      <div><label>Verses</label><textarea id="f-script-verses" style="min-height:180px"></textarea></div>
+      <div><label>Slides split: verses per slide</label><input id="f-script-split" type="number" value="3" min="1" max="8" style="width:100px"></div>
+      <div class="row"><button class="primary" onclick="saveScripture()">Save scripture</button><button onclick="closeDialogs()">Cancel</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-back" id="theme-dialog">
+  <div class="dialog">
+    <h3>Themes</h3>
+    <div class="modal-note">Global themes apply to every slide; per-item themes override. Background: CSS colour, or <code>gradient:</code> + CSS gradient.</div>
+    <div class="form-grid" id="theme-list"></div>
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div class="section-title">New theme</div>
+      <div class="form-grid">
+        <div class="row"><div class="grow"><label>Name</label><input id="f-theme-name" style="width:100%"></div>
+        <div style="width:150px"><label>Text colour</label><input id="f-theme-text" value="#f4f7fb" style="width:100%"></div></div>
+        <div><label>Background (colour or gradient:css)</label><input id="f-theme-bg" value="gradient:linear-gradient(160deg,#1c2541,#3a5a78)" style="width:100%"></div>
+        <div class="row">
+          <div class="grow"><label>Sub text</label><input id="f-theme-sub" value="#bcd2e8" style="width:100%"></div>
+          <div style="width:110px"><label>Size (vw)</label><input id="f-theme-size" type="number" step="0.1" value="5.2" style="width:100%"></div>
+          <div style="width:110px"><label>Overlay</label><input id="f-theme-ov" type="number" step="0.05" min="0" max="0.9" value="0.35" style="width:100%"></div>
+        </div>
+        <div class="row"><button class="primary" onclick="createTheme()">Create theme</button><button onclick="closeDialogs()">Done</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-back" id="pl-dialog">
+  <div class="dialog">
+    <h3 id="pl-dialog-title">New service</h3>
+    <div class="form-grid">
+      <div><label>Name</label><input id="f-pl-name" style="width:100%" placeholder="Sunday Service"></div>
+      <div><label>Date</label><input id="f-pl-date" type="date" style="width:60%"></div>
+      <div class="row"><button class="primary" onclick="savePlaylist()">Save</button><button onclick="closeDialogs()">Cancel</button>
+      <div class="spacer"></div><button class="danger small" id="pl-delete" onclick="deletePlaylist()">Delete service</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const API = "";
+let state = null;
+let libCache = { songs: [], scriptures: [], media: [] };
+let libTabCur = "songs";
+let plCur = null;         // selected playlist id
+let plData = null;        // {playlist, items}
+let songEditId = null;
+let themes = [];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+
+async function api(path, opts){
+  const r = await fetch(API + path, Object.assign({ headers: { "Content-Type": "application/json" } }, opts || {}));
+  if (!r.ok){ const t = await r.text(); toast("⚠ " + (t.slice(0, 140) || r.status)); throw new Error(t); }
+  return r.json();
+}
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600); }
+
+/* ---------------- websocket sync ---------------- */
+let ws = null, poll = null;
+function connect(){
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(proto + "//" + location.host + "/ws");
+  ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (msg_is_state(m)) setState(m.state); } catch(_){} };
+  ws.onopen = () => { $("conn").className = "conn on"; $("conn").textContent = "live"; if (poll){ clearInterval(poll); poll = null; } };
+  ws.onclose = () => { $("conn").className = "conn off"; $("conn").textContent = "reconnecting"; if (!poll) poll = setInterval(refreshState, 2000); setTimeout(connect, 2500); };
+  ws.onerror = () => { try { ws.close(); } catch(_){} };
+}
+function msg_is_state(m){ return m && m.type === "state" && m.state; }
+async function refreshState(){ try { const s = await api("/api/state"); setState(s); } catch(_){} }
+
+/* ---------------- state render ---------------- */
+function setState(st){
+  state = st;
+  renderOrder();
+  renderThumbs();
+  renderControls();
+}
+function renderControls(){
+  const live = state && state.mode === "live";
+  $("foot-state").textContent = live
+    ? ("LIVE · " + (state.playlist_name || "") + " · item " + ((state.item_index ?? -1) + 1) + "/" + (state.item_count || state.slides.length) + " · slide " + ((state.slide_index ?? 0) + 1) + "/" + state.slides.length + (state.display !== "normal" ? " · " + state.display.toUpperCase() : ""))
+    : "Idle — load an item to go live";
+  // countdown display
+  const cd = $("cd-live") || $("cd");
+  if (state && state.countdown_end){
+    const remain = Math.max(0, state.countdown_end * 1000 - Date.now());
+    const m = Math.floor(remain / 60000), s = Math.floor((remain % 60000) / 1000);
+    $("cd-live") ? $("cd-live").textContent = m + ":" + String(s).padStart(2, "0") : 0;
+    const el = $("cd-live");
+  }
+}
+setInterval(() => {
+  if (state && state.countdown_end){
+    const remain = Math.max(0, state.countdown_end * 1000 - Date.now());
+    const m = Math.floor(remain / 60000), s = Math.floor((remain % 60000) / 1000);
+    $("cd-live") && ($("cd-live").textContent = m + ":" + String(s).padStart(2, "0"));
+  }
+}, 500);
+
+/* ---------------- library ---------------- */
+async function loadLibrary(){
+  const [songs, scriptures, media, th] = await Promise.all([
+    api("/api/songs"), api("/api/scriptures"), api("/api/media"), api("/api/themes")
+  ]);
+  libCache = { songs, scriptures, media };
+  themes = th;
+  renderLibrary(); renderThemes(); fillThemeSelects();
+}
+function libTab(t){
+  libTabCur = t;
+  document.querySelectorAll("[data-libtab]").forEach(el => el.classList.toggle("tab", true));
+  document.querySelectorAll(".tab").forEach(el => el.style.background = "");
+  document.querySelectorAll(".tab").forEach(el => el.classList.remove("active"));
+  renderLibrary();
+}
+function renderLibrary(){
+  const q = $("lib-search").value.toLowerCase().trim();
+  const box = $("lib-list");
+  const items = libCache[libTabCur] || [];
+  const filt = items.filter(x => !q || JSON.stringify(x).toLowerCase().includes(q));
+  box.innerHTML = filt.map(x => {
+    const id = x.id;
+    if (libTabCur === "songs"){
+      return '<div class="list-item" onclick="addToOrder(\'song\',' + id + ')">' +
+        '<div class="t">' + esc(x.title) + '</div><span class="sub">' + esc(x.author || "") + '</span>' +
+        '<button class="small" onclick="editSong(' + id + ');event.stopPropagation()">✎</button></div>';
+    }
+    if (libTabCur === "scriptures"){
+      return '<div class="list-item" onclick="addToOrder(\'scripture\',' + id + ')">' +
+        '<div class="t">' + esc(x.reference) + '</div><span class="sub">' + esc(x.version || "") + '</span></div>';
+    }
+    return '<div class="list-item" onclick="addToOrder(\'media\',' + id + ')">' +
+      '<div class="t">' + esc(x.name) + '</div><span class="sub">' + esc(x.kind) + '</span></div>';
+  }).join("") || '<div style="color:var(--dim);padding:12px">Nothing yet — use “Add song” / “Add scripture”.</div>';
+}
+function addToOrder(kind, refId){
+  api("/api/playlists/" + plCur + "/items", { method: "POST", body: JSON.stringify({ kind, ref_id: refId }) })
+    .then(() => loadPlaylist(plCur)).then(() => toast("Added to order"));
+}
+
+/* ---------------- playlists ---------------- */
+async function loadPlaylists(){
+  const pls = await api("/api/playlists");
+  const sel = $("pl-select");
+  sel.innerHTML = pls.map(p => '<option value="' + p.id + '">' + esc(p.name) + "</option>").join("");
+  if (!plCur && pls.length) plCur = pls[0].id;
+  if (plCur) sel.value = plCur;
+  await loadPlaylist(plCur);
+}
+async function switchPlaylist(id){ plCur = +id; await loadPlaylist(plCur); }
+async function loadPlaylist(id){
+  if (!id) return;
+  plData = await api("/api/playlists/" + id);
+  $("pl-name").textContent = plData.playlist.name;
+  $("pl-count").textContent = plData.items.length + " items";
+  renderOrder();
+}
+function renderOrder(){
+  const box = $("order-list");
+  if (!plData){ box.innerHTML = ""; return; }
+  const live = state && state.mode === "live" && state.playlist_id === plData.playlist.id;
+  box.innerHTML = plData.items.map((it, i) => {
+    const isLive = live && state.item_index === i;
+    const done = live && state.item_index > i;
+    return '<div class="playlist-item' + (isLive ? " live" : done ? " done" : "") + '" draggable="true" data-i="' + i + '" data-id="' + it.id + '"' +
+      (isLive ? ' id="live-item"' : "") + ">" +
+      '<div class="n">' + (i + 1) + '</div>' +
+      '<div class="t">' + esc(it.label) + ' <span class="sub">' + esc(it.kind) + '</span></div>' +
+      '<button class="small" onclick="goItem(' + i + ')">▶</button>' +
+      '<div class="x" onclick="removeItem(' + it.id + ');event.stopPropagation()">✕</div></div>';
+  }).join("") || '<div style="color:var(--dim);padding:14px">Empty — add items from the library on the left.</div>';
+  wireDnD();
+  const li = document.getElementById("live-item");
+  if (li) li.scrollIntoView({ block: "nearest" });
+}
+function wireDnD(){
+  let dragId = null;
+  document.querySelectorAll(".playlist-item").forEach(el => {
+    el.addEventListener("dragstart", e => { dragId = +el.dataset.id; e.dataTransfer.effectAllowed = "move"; });
+    el.addEventListener("dragover", e => { e.preventDefault(); el.classList.add("dragover"); });
+    el.addEventListener("dragleave", () => el.classList.remove("dragover"));
+    el.addEventListener("drop", async e => {
+      e.preventDefault(); el.classList.remove("dragover");
+      if (dragId == null || dragId === +el.dataset.id) return;
+      const ids = plData.items.map(i => i.id);
+      const from = ids.indexOf(dragId), to = ids.indexOf(+el.dataset.id);
+      ids.splice(to, 0, ids.splice(from, 1)[0]);
+      await api("/api/playlists/" + plCur + "/reorder", { method: "PUT", body: JSON.stringify({ order: ids }) });
+      await loadPlaylist(plCur);
+    });
+  });
+}
+async function removeItem(itemId){
+  await api("/api/playlists/" + plCur + "/items/" + itemId, { method: "DELETE" });
+  loadPlaylist(plCur);
+}
+
+/* ---------------- presenting ---------------- */
+async function present(action, extra){
+  try {
+    const body = Object.assign({ action }, extra || {});
+    const st = await api("/api/present", { method: "POST", body: JSON.stringify(body) });
+    setState(st);
+  } catch(e){ /* toast already shown */ }
+}
+async function goItem(i){
+  await loadPlaylist(plCur);
+  try {
+    const st = await api("/api/present", { method: "POST", body: JSON.stringify({ action: "load", item_index: plCur }) });
+    setState(st);
+    const st2 = await api("/api/present", { method: "POST", body: JSON.stringify({ action: "go", item_index: i }) });
+    setState(st2);
+  } catch(e){}
+}
+function goNext(){
+  if (!state || state.mode !== "live"){
+    // first go: start item 0
+    api("/api/present", { method: "POST", body: JSON.stringify({ action: "go", item_index: 0 }) }).then(setState).catch(()=>{});
+  } else present("next");
+}
+function renderThumbs(){
+  const box = $("thumbs");
+  if (state && state.slides && state.slides.length){
+    box.innerHTML = state.slides.map((s, i) => {
+      const txt = s.type === "scripture" ? s.text : s.type === "media" ? "🖼 " + s.label : (s.lines || []).join(" ");
+      const cur = state.slide_index === i ? " cur" : "";
+      return '<div class="thumb' + cur + '" onclick="gotoSlide(' + i + ')" title="' + esc((s.label || "") + " — " + txt) + '">' + esc(txt.slice(0, 26) || s.label) + "</div>";
+    }).join("");
+  } else box.innerHTML = "";
+}
+async function gotoSlide(i){ await present("goto", { slide_index: i }); }
+
+/* ---------------- theme override ---------------- */
+function fillThemeSelects(){
+  const ov = $("theme-override");
+  ov.innerHTML = '<option value="">(slide themes)</option>' + themes.map(t => '<option value="' + t.id + '">' + esc(t.name) + "</option>").join("");
+  const s1 = $("f-song-theme");
+  s1.innerHTML = '<option value="">(default theme)</option>' + themes.map(t => '<option value="' + t.id + '">' + esc(t.name) + "</option>").join("");
+}
+async function applyThemeOverride(id){
+  if (!id) return;
+  await present("theme", { theme_id: +id });
+  toast("Theme override applied live");
+}
+function renderThemes(){
+  const g = $("themes-grid");
+  if (!g) return;
+  g.innerHTML = themes.map(t => {
+    const bg = t.background.type === "gradient" ? t.background.css : t.background.css;
+    return '<div class="theme-chip" style="background:' + esc(bg) + '" onclick="applyThemeOverride(' + t.id + ')">' + esc(t.name) + "</div>";
+  }).join("");
+}
+
+/* ---------------- dialogs ---------------- */
+function openDialog(id){ $(id).style.display = "flex"; if (id === "song-dialog"){ songEditId = null; $("song-dialog-title").textContent = "Add song"; $("song-delete").style.display = "none"; clearSongForm(); } if (id === "pl-dialog"){ $("pl-dialog-title").textContent = plData ? "Edit service" : "New service"; $("f-pl-name").value = plData ? plData.playlist.name : ""; $("f-pl-date").value = plData ? plData.playlist.service_date : ""; } }
+function closeDialogs(){ document.querySelectorAll(".dialog-back").forEach(d => d.style.display = "none"); }
+function clearSongForm(){ ["f-song-title", "f-song-author", "f-song-ccli", "f-song-lyrics"].forEach(i => $(i).value = ""); $("f-song-theme").value = ""; }
+
+async function saveSong(){
+  const body = { title: $("f-song-title").value.trim(), author: $("f-song-author").value.trim(), ccli: $("f-song-ccli").value.trim(), lyrics: $("f-song-lyrics").value, theme_id: $("f-song-theme").value ? +$("f-song-theme").value : null, notes: "" };
+  if (!body.title) return toast("Title required");
+  if (songEditId) await api("/api/songs/" + songEditId, { method: "PUT", body: JSON.stringify(body) });
+  else {
+    const r = await api("/api/songs", { method: "POST", body: JSON.stringify(body) });
+    if (plCur && autoAdd.checked === false && false) {} // no-op
+  }
+  closeDialogs(); loadLibrary();
+  toast(songEditId ? "Song updated" : "Song saved");
+}
+async function editSong(id){
+  const s = await api("/api/songs/" + id);
+  songEditId = id;
+  $("song-dialog-title").textContent = "Edit song";
+  $("song-delete").style.display = "inline-block";
+  $("f-song-title").value = s.title; $("f-song-author").value = s.author || ""; $("f-song-ccli").value = s.ccli || "";
+  $("f-song-lyrics").value = s.lyrics || ""; if (s.theme_id) $("f-song-theme").value = s.theme_id;
+  $("song-dialog").style.display = "flex";
+}
+function deleteSong(){ if (songEditId && confirm("Delete this song?")) { api("/api/songs/" + songEditId, { method: "DELETE" }).then(() => { closeDialogs(); loadLibrary(); }); } }
+
+async function saveScripture(){
+  const ref = $("f-script-ref").value.trim();
+  const ver = $("f-script-ver").value.trim() || "NIV";
+  const raw = $("f-script-verses").value.trim();
+  if (!ref || !raw) return toast("Reference and verses required");
+  const verses = raw.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/^(\d+)\s+(.*)$/); return m ? { v: +m[1], text: m[2] } : { v: "", text: l };
+  });
+  const r = await api("/api/scriptures", { method: "POST", body: JSON.stringify({ reference: ref, version: ver, verses }) });
+  closeDialogs(); loadLibrary();
+  toast("Scripture saved");
+}
+async function savePlaylist(){
+  const name = $("f-pl-name").value.trim();
+  if (!name) return toast("Name required");
+  if (plData){
+    await api("/api/playlists/" + plData.playlist.id, { method: "PUT", body: JSON.stringify({ name, service_date: $("f-pl-date").value, notes: "" }) });
+  } else {
+    const r = await api("/api/playlists", { method: "POST", body: JSON.stringify({ name, service_date: $("f-pl-date").value }) });
+    plCur = r.id;
+  }
+  closeDialogs(); loadPlaylists(); toast("Service saved");
+}
+async function deletePlaylist(){
+  if (!plData) return;
+  if (!confirm("Delete this service and its order?")) return;
+  await api("/api/playlists/" + plData.playlist.id, { method: "DELETE" });
+  plCur = null; closeDialogs(); loadPlaylists();
+}
+async function createTheme(){
+  const name = $("f-theme-name").value.trim();
+  if (!name) return toast("Name required");
+  await api("/api/themes", { method: "POST", body: JSON.stringify({
+    name, background: $("f-theme-bg").value, text_color: $("f-theme-text").value, sub_text_color: $("f-theme-sub").value,
+    font_size_vw: +$("f-theme-size").value || 5.2, overlay_opacity: +$("f-theme-ov").value || 0.35, align: "center", shadow: "1"
+  })});
+  $("f-theme-name").value = "";
+  loadLibrary(); toast("Theme created");
+}
+async function sendAlert(){
+  const t = $("alert-input").value.trim();
+  if (!t) return;
+  await api("/api/alert", { method: "POST", body: JSON.stringify({ text: t, duration: 10 }) });
+  $("alert-input").value = ""; toast("Alert sent");
+}
+async function startCountdown(){ await api("/api/countdown", { method: "POST", body: JSON.stringify({ minutes: +$("cd-mins").value }) }); toast("Countdown started"); }
+async function stopCountdown(){ await api("/api/countdown", { method: "POST", body: JSON.stringify({ minutes: 0 }) }); toast("Countdown stopped"); }
+async function saveAsTemplate(){ toast("Saved (service kept as is)"); }
+
+/* keyboard shortcuts */
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input, textarea, select")) return;
+  if (e.key === "N" || e.key === "n" || e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); goNext(); }
+  if (e.key === "P" || e.key === "p" || e.key === "ArrowLeft") { e.preventDefault(); present("prev"); }
+  if (e.key === "B" || e.key === "b") present("blank");
+  if (e.key === "L" || e.key === "l") present("logo");
+  if (e.key === "C" || e.key === "c") present("clear");
+  if (e.key === "F" || e.key === "f") present("credits");
+  if (e.key === "Escape") closeDialogs();
+});
+
+/* boot */
+connect(); refreshState(); loadLibrary().then(loadPlaylists);
+</script>
+</body>
+</html>
